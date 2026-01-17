@@ -12,7 +12,15 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
+
+  preview: {
+    allowedHosts: [
+      "student-resolve-alio.onrender.com"
+    ],
+  },
+
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
