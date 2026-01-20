@@ -55,17 +55,36 @@ export default function AdminComplaints() {
 
   const fetchComplaints = async () => {
     try {
+      // Fetch complaints with categories
       const { data, error } = await supabase
         .from('complaints')
         .select(`
           *,
-          category:categories(id, name),
-          profile:profiles!complaints_user_id_fkey(full_name, email)
+          category:categories(id, name)
         `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setComplaints(data as unknown as Complaint[]);
+
+      // Fetch profiles for all users
+      if (data && data.length > 0) {
+        const userIds = [...new Set(data.map(c => c.user_id))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, email')
+          .in('user_id', userIds);
+
+        const profileMap = new Map(profiles?.map(p => [p.user_id, { full_name: p.full_name, email: p.email }]) || []);
+        
+        const complaintsWithProfiles = data.map(c => ({
+          ...c,
+          profile: profileMap.get(c.user_id) || { full_name: 'Unknown', email: 'Unknown' }
+        }));
+        
+        setComplaints(complaintsWithProfiles as unknown as Complaint[]);
+      } else {
+        setComplaints([]);
+      }
     } catch (error) {
       console.error('Error fetching complaints:', error);
     } finally {

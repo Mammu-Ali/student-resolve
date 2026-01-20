@@ -48,19 +48,37 @@ export default function AdminOverview({ onNavigate }: { onNavigate: (tab: string
         });
       }
 
-      // Fetch recent complaints with user info
+      // Fetch recent complaints
       const { data: recent, error: recentError } = await supabase
         .from('complaints')
         .select(`
-          id, subject, status, created_at,
-          category:categories(name),
-          profile:profiles!complaints_user_id_fkey(full_name)
+          id, subject, status, created_at, user_id,
+          category:categories(name)
         `)
         .order('created_at', { ascending: false })
         .limit(5);
 
       if (recentError) throw recentError;
-      setRecentComplaints(recent as unknown as RecentComplaint[]);
+
+      // Fetch profiles for each complaint's user
+      if (recent && recent.length > 0) {
+        const userIds = [...new Set(recent.map(c => c.user_id))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name')
+          .in('user_id', userIds);
+
+        const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
+        
+        const complaintsWithProfiles = recent.map(c => ({
+          ...c,
+          profile: { full_name: profileMap.get(c.user_id) || 'Unknown' }
+        }));
+        
+        setRecentComplaints(complaintsWithProfiles as unknown as RecentComplaint[]);
+      } else {
+        setRecentComplaints([]);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
