@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Send, FileText } from 'lucide-react';
+import { Loader2, Send, FileText, Paperclip, X, File } from 'lucide-react';
 
 interface Category {
   id: string;
@@ -16,8 +16,17 @@ interface Category {
   description: string;
 }
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+];
+
 export default function NewComplaint({ onSuccess }: { onSuccess: () => void }) {
   const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetchingCategories, setFetchingCategories] = useState(true);
@@ -25,6 +34,7 @@ export default function NewComplaint({ onSuccess }: { onSuccess: () => void }) {
   const [categoryId, setCategoryId] = useState('');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
+  const [attachment, setAttachment] = useState<File | null>(null);
 
   useEffect(() => {
     fetchCategories();
@@ -45,6 +55,48 @@ export default function NewComplaint({ onSuccess }: { onSuccess: () => void }) {
     } finally {
       setFetchingCategories(false);
     }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast.error('Invalid file type. Please upload an image, PDF, or Word document.');
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('File is too large. Maximum size is 5MB.');
+      return;
+    }
+
+    setAttachment(file);
+  };
+
+  const removeAttachment = () => {
+    setAttachment(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadAttachment = async (complaintId: string): Promise<string | null> => {
+    if (!attachment || !user) return null;
+
+    const fileExt = attachment.name.split('.').pop();
+    const fileName = `${user.id}/${complaintId}/${Date.now()}.${fileExt}`;
+
+    const { error } = await supabase.storage
+      .from('complaint-attachments')
+      .upload(fileName, attachment);
+
+    if (error) {
+      console.error('Upload error:', error);
+      throw new Error('Failed to upload attachment');
+    }
+
+    return fileName;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -68,14 +120,31 @@ export default function NewComplaint({ onSuccess }: { onSuccess: () => void }) {
     setLoading(true);
 
     try {
-      const { error } = await supabase.from('complaints').insert({
-        user_id: user!.id,
-        category_id: categoryId,
-        subject: subject.trim(),
-        description: description.trim(),
-      });
+      // First create the complaint
+      const { data: complaint, error: insertError } = await supabase
+        .from('complaints')
+        .insert({
+          user_id: user!.id,
+          category_id: categoryId,
+          subject: subject.trim(),
+          description: description.trim(),
+        })
+        .select('id')
+        .single();
 
-      if (error) throw error;
+      if (insertError) throw insertError;
+
+      // Upload attachment if exists
+      if (attachment && complaint) {
+        const attachmentPath = await uploadAttachment(complaint.id);
+        
+        if (attachmentPath) {
+          await supabase
+            .from('complaints')
+            .update({ attachment_url: attachmentPath })
+            .eq('id', complaint.id);
+        }
+      }
 
       toast.success('Complaint submitted successfully!');
       onSuccess();
@@ -156,6 +225,53 @@ export default function NewComplaint({ onSuccess }: { onSuccess: () => void }) {
                 maxLength={2000}
               />
               <p className="text-xs text-muted-foreground text-right">{description.length}/2000</p>
+            </div>
+
+            {/* Attachment */}
+            <div className="space-y-2">
+              <Label htmlFor="attachment">Attachment (optional)</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                id="attachment"
+                onChange={handleFileChange}
+                accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx"
+                className="hidden"
+              />
+              
+              {attachment ? (
+                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                  <File className="h-5 w-5 text-primary" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{attachment.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(attachment.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={removeAttachment}
+                    className="shrink-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full gap-2"
+                >
+                  <Paperclip className="h-4 w-4" />
+                  Attach File
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Max 5MB. Supported: JPG, PNG, GIF, PDF, DOC, DOCX
+              </p>
             </div>
 
             {/* Submit */}

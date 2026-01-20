@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { FileText, Search, Filter, Eye } from 'lucide-react';
+import { FileText, Search, Filter, Eye, Paperclip, Download } from 'lucide-react';
 import { StatusBadge } from '@/components/ui/status-badge';
 
 interface Complaint {
@@ -15,6 +15,7 @@ interface Complaint {
   description: string;
   status: 'submitted' | 'in_review' | 'resolved';
   admin_response: string | null;
+  attachment_url: string | null;
   created_at: string;
   updated_at: string;
   resolved_at: string | null;
@@ -143,6 +144,9 @@ export default function StudentComplaints() {
                     <div className="flex items-center gap-2">
                       <p className="font-medium truncate">{complaint.subject}</p>
                       <StatusBadge status={complaint.status} />
+                      {complaint.attachment_url && (
+                        <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
+                      )}
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-1">{complaint.description}</p>
                     <p className="text-xs text-muted-foreground">
@@ -179,6 +183,28 @@ export default function StudentComplaints() {
                   <h4 className="text-sm font-medium text-muted-foreground mb-2">Description</h4>
                   <p className="text-foreground">{selectedComplaint.description}</p>
                 </div>
+
+                {selectedComplaint.attachment_url && (
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Attachment</h4>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={async () => {
+                        const { data } = await supabase.storage
+                          .from('complaint-attachments')
+                          .createSignedUrl(selectedComplaint.attachment_url!, 60);
+                        if (data?.signedUrl) {
+                          window.open(data.signedUrl, '_blank');
+                        }
+                      }}
+                    >
+                      <Download className="h-4 w-4" />
+                      View Attachment
+                    </Button>
+                  </div>
+                )}
 
                 {selectedComplaint.admin_response && (
                   <div className="p-4 rounded-lg bg-accent/10 border border-accent/20">
