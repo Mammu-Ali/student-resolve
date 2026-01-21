@@ -159,11 +159,11 @@ export default function NewComplaint({ onSuccess }: { onSuccess: () => void }) {
   const selectedCategory = categories.find((c) => c.id === categoryId);
 
   return (
-    <div className="p-8 max-w-3xl mx-auto space-y-6 animate-fade-in">
+    <div className="p-4 md:p-8 max-w-3xl mx-auto space-y-6 animate-fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Submit New Complaint</h1>
-        <p className="text-muted-foreground mt-1">Fill out the form below to submit your complaint</p>
+        <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground">Submit New Complaint</h1>
+        <p className="text-muted-foreground mt-1 text-sm md:text-base">Fill out the form below to submit your complaint</p>
       </div>
 
       <Card className="shadow-elevated">

@@ -168,11 +168,11 @@ export default function AdminComplaints() {
   };
 
   return (
-    <div className="p-8 space-y-6 animate-fade-in">
+    <div className="p-4 md:p-8 space-y-6 animate-fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">All Complaints</h1>
-        <p className="text-muted-foreground mt-1">Review and manage student complaints</p>
+        <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground">All Complaints</h1>
+        <p className="text-muted-foreground mt-1 text-sm md:text-base">Review and manage student complaints</p>
       </div>
 
       {/* Filters */}
