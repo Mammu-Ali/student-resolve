@@ -96,14 +96,14 @@ export default function AdminOverview({ onNavigate }: { onNavigate: (tab: string
   const resolutionRate = stats.total > 0 ? Math.round((stats.resolved / stats.total) * 100) : 0;
 
   return (
-    <div className="p-8 space-y-8 animate-fade-in">
+    <div className="p-4 md:p-8 space-y-6 md:space-y-8 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Manage and resolve student complaints</p>
+          <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground">Admin Dashboard</h1>
+          <p className="text-muted-foreground mt-1 text-sm md:text-base">Manage and resolve student complaints</p>
         </div>
-        <Button onClick={() => onNavigate('complaints')} className="gap-2">
+        <Button onClick={() => onNavigate('complaints')} className="gap-2 w-full sm:w-auto">
           View All Complaints
           <ArrowRight className="h-4 w-4" />
         </Button>
