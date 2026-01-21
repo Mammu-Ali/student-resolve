@@ -12,7 +12,8 @@ import {
   BarChart3,
   Menu,
   Moon,
-  Sun
+  Sun,
+  FolderOpen
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
@@ -146,5 +147,6 @@ export const studentTabs = [
 export const adminTabs = [
   { id: 'overview', label: 'Overview', icon: <LayoutDashboard className="h-4 w-4" /> },
   { id: 'complaints', label: 'All Complaints', icon: <FileText className="h-4 w-4" /> },
+  { id: 'categories', label: 'Categories', icon: <FolderOpen className="h-4 w-4" /> },
   { id: 'reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" /> },
 ];
