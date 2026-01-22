@@ -3,7 +3,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Download, TrendingUp, Users, FileText, CheckCircle } from 'lucide-react';
+import { Download, Users, FileText, CheckCircle, Filter } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 interface CategoryStats {
   name: string;
@@ -16,10 +20,9 @@ interface StatusStats {
   color: string;
 }
 
-interface MonthlyStats {
-  month: string;
-  submitted: number;
-  resolved: number;
+interface Category {
+  id: string;
+  name: string;
 }
 
 export default function AdminReports() {
@@ -29,10 +32,24 @@ export default function AdminReports() {
   const [totalStudents, setTotalStudents] = useState(0);
   const [resolutionRate, setResolutionRate] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<Category[]>([]);
+  
+  // Export filters
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     fetchReportData();
+    fetchCategories();
   }, []);
+
+  const fetchCategories = async () => {
+    const { data } = await supabase.from('categories').select('id, name').order('name');
+    if (data) setCategories(data);
+  };
 
   const fetchReportData = async () => {
     try {
@@ -78,16 +95,10 @@ export default function AdminReports() {
       }
 
       // Fetch unique students count
-      const { data: students } = await supabase
+      const { count } = await supabase
         .from('profiles')
-        .select('id', { count: 'exact', head: true });
-
-      if (students !== null) {
-        const { count } = await supabase
-          .from('profiles')
-          .select('*', { count: 'exact', head: true });
-        setTotalStudents(count || 0);
-      }
+        .select('*', { count: 'exact', head: true });
+      setTotalStudents(count || 0);
     } catch (error) {
       console.error('Error fetching report data:', error);
     } finally {
@@ -96,30 +107,65 @@ export default function AdminReports() {
   };
 
   const exportToCSV = async () => {
+    setExporting(true);
     try {
-      const { data: complaints } = await supabase
+      let query = supabase
         .from('complaints')
         .select(`
           id, subject, description, status, admin_response, created_at, updated_at, resolved_at,
           category:categories(name),
-          profile:profiles!complaints_user_id_fkey(full_name, email)
+          user_id
         `)
         .order('created_at', { ascending: false });
 
-      if (!complaints) return;
+      // Apply filters
+      if (filterStatus !== 'all') {
+        query = query.eq('status', filterStatus as 'submitted' | 'in_review' | 'resolved');
+      }
+      if (filterCategory !== 'all') {
+        query = query.eq('category_id', filterCategory);
+      }
+      if (dateFrom) {
+        query = query.gte('created_at', new Date(dateFrom).toISOString());
+      }
+      if (dateTo) {
+        const endDate = new Date(dateTo);
+        endDate.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', endDate.toISOString());
+      }
+
+      const { data: complaints, error } = await query;
+
+      if (error) throw error;
+      if (!complaints || complaints.length === 0) {
+        toast.error('No complaints found with the selected filters');
+        return;
+      }
+
+      // Fetch profiles for user info
+      const userIds = [...new Set(complaints.map(c => c.user_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, email')
+        .in('user_id', userIds);
+
+      const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
       const headers = ['ID', 'Subject', 'Category', 'Status', 'Student Name', 'Student Email', 'Created At', 'Resolved At', 'Admin Response'];
-      const rows = complaints.map((c: any) => [
-        c.id,
-        `"${c.subject.replace(/"/g, '""')}"`,
-        c.category?.name || '',
-        c.status,
-        c.profile?.full_name || '',
-        c.profile?.email || '',
-        new Date(c.created_at).toLocaleString(),
-        c.resolved_at ? new Date(c.resolved_at).toLocaleString() : '',
-        `"${(c.admin_response || '').replace(/"/g, '""')}"`,
-      ]);
+      const rows = complaints.map((c: any) => {
+        const profile = profileMap.get(c.user_id);
+        return [
+          c.id,
+          `"${(c.subject || '').replace(/"/g, '""')}"`,
+          c.category?.name || '',
+          c.status,
+          profile?.full_name || '',
+          profile?.email || '',
+          new Date(c.created_at).toLocaleString(),
+          c.resolved_at ? new Date(c.resolved_at).toLocaleString() : '',
+          `"${(c.admin_response || '').replace(/"/g, '""')}"`,
+        ];
+      });
 
       const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -127,8 +173,13 @@ export default function AdminReports() {
       link.href = URL.createObjectURL(blob);
       link.download = `complaints_report_${new Date().toISOString().split('T')[0]}.csv`;
       link.click();
+      
+      toast.success(`Exported ${complaints.length} complaints to CSV`);
     } catch (error) {
       console.error('Error exporting CSV:', error);
+      toast.error('Failed to export CSV');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -141,15 +192,80 @@ export default function AdminReports() {
   return (
     <div className="p-8 space-y-8 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Reports & Analytics</h1>
           <p className="text-muted-foreground mt-1">View complaint statistics and export data</p>
         </div>
-        <Button onClick={exportToCSV} className="gap-2">
-          <Download className="h-4 w-4" />
-          Export CSV
-        </Button>
+        
+        {/* Export Filters */}
+        <Card className="shadow-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-display flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Export Filters
+            </CardTitle>
+            <CardDescription>Apply filters before exporting to CSV</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+              <div className="space-y-2">
+                <Label htmlFor="filter-status">Status</Label>
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                  <SelectTrigger id="filter-status">
+                    <SelectValue placeholder="All Statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="in_review">In Review</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="filter-category">Category</Label>
+                <Select value={filterCategory} onValueChange={setFilterCategory}>
+                  <SelectTrigger id="filter-category">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map(cat => (
+                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="date-from">From Date</Label>
+                <Input
+                  id="date-from"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="date-to">To Date</Label>
+                <Input
+                  id="date-to"
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+              </div>
+              
+              <Button onClick={exportToCSV} disabled={exporting} className="gap-2">
+                <Download className="h-4 w-4" />
+                {exporting ? 'Exporting...' : 'Export CSV'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Summary Cards */}
