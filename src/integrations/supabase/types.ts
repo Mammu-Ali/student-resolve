@@ -35,6 +35,41 @@ export type Database = {
         }
         Relationships: []
       }
+      complaint_comments: {
+        Row: {
+          complaint_id: string
+          content: string
+          created_at: string
+          id: string
+          is_admin: boolean
+          user_id: string
+        }
+        Insert: {
+          complaint_id: string
+          content: string
+          created_at?: string
+          id?: string
+          is_admin?: boolean
+          user_id: string
+        }
+        Update: {
+          complaint_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_admin?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaint_comments_complaint_id_fkey"
+            columns: ["complaint_id"]
+            isOneToOne: false
+            referencedRelation: "complaints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       complaint_logs: {
         Row: {
           action: string
@@ -84,6 +119,7 @@ export type Database = {
           created_at: string
           description: string
           id: string
+          priority: Database["public"]["Enums"]["complaint_priority"]
           resolved_at: string | null
           status: Database["public"]["Enums"]["complaint_status"]
           subject: string
@@ -97,6 +133,7 @@ export type Database = {
           created_at?: string
           description: string
           id?: string
+          priority?: Database["public"]["Enums"]["complaint_priority"]
           resolved_at?: string | null
           status?: Database["public"]["Enums"]["complaint_status"]
           subject: string
@@ -110,6 +147,7 @@ export type Database = {
           created_at?: string
           description?: string
           id?: string
+          priority?: Database["public"]["Enums"]["complaint_priority"]
           resolved_at?: string | null
           status?: Database["public"]["Enums"]["complaint_status"]
           subject?: string
@@ -192,6 +230,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "student"
+      complaint_priority: "low" | "medium" | "high" | "critical"
       complaint_status: "submitted" | "in_review" | "resolved"
     }
     CompositeTypes: {
@@ -321,6 +360,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "student"],
+      complaint_priority: ["low", "medium", "high", "critical"],
       complaint_status: ["submitted", "in_review", "resolved"],
     },
   },
