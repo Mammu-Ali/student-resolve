@@ -13,7 +13,8 @@ import {
   Menu,
   Moon,
   Sun,
-  FolderOpen
+  FolderOpen,
+  History
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
@@ -149,4 +150,5 @@ export const adminTabs = [
   { id: 'complaints', label: 'All Complaints', icon: <FileText className="h-4 w-4" /> },
   { id: 'categories', label: 'Categories', icon: <FolderOpen className="h-4 w-4" /> },
   { id: 'reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" /> },
+  { id: 'activity', label: 'Activity Log', icon: <History className="h-4 w-4" /> },
 ];

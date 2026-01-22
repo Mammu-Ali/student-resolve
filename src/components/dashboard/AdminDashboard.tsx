@@ -4,6 +4,7 @@ import AdminOverview from './admin/AdminOverview';
 import AdminComplaints from './admin/AdminComplaints';
 import AdminCategories from './admin/AdminCategories';
 import AdminReports from './admin/AdminReports';
+import AdminActivityLog from './admin/AdminActivityLog';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -18,6 +19,8 @@ export default function AdminDashboard() {
         return <AdminCategories />;
       case 'reports':
         return <AdminReports />;
+      case 'activity':
+        return <AdminActivityLog />;
       default:
         return <AdminOverview onNavigate={setActiveTab} />;
     }
