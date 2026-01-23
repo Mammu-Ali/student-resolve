@@ -14,6 +14,7 @@ import { FileText, Search, Filter, Eye, Loader2, Paperclip, Download, CheckSquar
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { sendNotification } from '@/lib/notifications';
 
 type Priority = 'low' | 'medium' | 'high' | 'critical';
 
@@ -213,6 +214,25 @@ export default function AdminComplaints() {
         performed_by: user!.id,
       }]);
 
+      // Send email notifications for status and priority changes
+      if (newStatus !== selectedComplaint.status) {
+        sendNotification({
+          type: 'status_change',
+          complaintId: selectedComplaint.id,
+          oldValue: selectedComplaint.status,
+          newValue: newStatus,
+        }).catch(console.error);
+      }
+
+      if (newPriority !== selectedComplaint.priority) {
+        sendNotification({
+          type: 'priority_change',
+          complaintId: selectedComplaint.id,
+          oldValue: selectedComplaint.priority,
+          newValue: newPriority,
+        }).catch(console.error);
+      }
+
       toast.success('Complaint updated successfully');
       setSelectedComplaint(null);
       fetchComplaints();
@@ -241,6 +261,13 @@ export default function AdminComplaints() {
         .single();
 
       if (error) throw error;
+
+      // Send email notification for admin comment
+      sendNotification({
+        type: 'admin_comment',
+        complaintId: selectedComplaint.id,
+        comment: newComment.trim(),
+      }).catch(console.error);
 
       setComments([...comments, data as Comment]);
       setNewComment('');
