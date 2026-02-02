@@ -21,7 +21,7 @@ interface RecentComplaint {
   profile: { full_name: string };
 }
 
-export default function AdminOverview({ onNavigate }: { onNavigate: (tab: string) => void }) {
+const AdminOverview = ({ onNavigate }: { onNavigate: (tab: string) => void }) => {
   const [stats, setStats] = useState<Stats>({ total: 0, submitted: 0, inReview: 0, resolved: 0 });
   const [recentComplaints, setRecentComplaints] = useState<RecentComplaint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -194,4 +194,6 @@ export default function AdminOverview({ onNavigate }: { onNavigate: (tab: string
       </Card>
     </div>
   );
-}
+};
+
+export default AdminOverview;
