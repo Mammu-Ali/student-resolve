@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { FileText, Search, Filter, Eye, Paperclip, Download } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { FileText, Search, Filter, Eye, Paperclip, Download, MessageSquare, Send, Loader2 } from 'lucide-react';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { toast } from 'sonner';
 
 interface Complaint {
   id: string;
@@ -22,6 +24,14 @@ interface Complaint {
   category: { id: string; name: string };
 }
 
+interface Comment {
+  id: string;
+  content: string;
+  is_admin: boolean;
+  created_at: string;
+  user_id: string;
+}
+
 export default function StudentComplaints() {
   const { user } = useAuth();
   const [complaints, setComplaints] = useState<Complaint[]>([]);
@@ -30,6 +40,11 @@ export default function StudentComplaints() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
+
+  // Comments
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [sendingComment, setSendingComment] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -74,6 +89,48 @@ export default function StudentComplaints() {
     }
 
     setFilteredComplaints(filtered);
+  };
+
+  const openComplaint = async (complaint: Complaint) => {
+    setSelectedComplaint(complaint);
+    setNewComment('');
+
+    // Fetch comments
+    const { data } = await supabase
+      .from('complaint_comments')
+      .select('*')
+      .eq('complaint_id', complaint.id)
+      .order('created_at', { ascending: true });
+    setComments((data as Comment[]) || []);
+  };
+
+  const handleSendComment = async () => {
+    if (!selectedComplaint || !newComment.trim()) return;
+
+    setSendingComment(true);
+    try {
+      const { data, error } = await supabase
+        .from('complaint_comments')
+        .insert([{
+          complaint_id: selectedComplaint.id,
+          user_id: user!.id,
+          content: newComment.trim(),
+          is_admin: false,
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setComments([...comments, data as Comment]);
+      setNewComment('');
+      toast.success('Message sent');
+    } catch (error: unknown) {
+      console.error('Error sending comment:', error);
+      toast.error('Failed to send message');
+    } finally {
+      setSendingComment(false);
+    }
   };
 
   return (
@@ -138,7 +195,7 @@ export default function StudentComplaints() {
                   key={complaint.id}
                   className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors cursor-pointer animate-slide-in"
                   style={{ animationDelay: `${index * 30}ms` }}
-                  onClick={() => setSelectedComplaint(complaint)}
+                  onClick={() => openComplaint(complaint)}
                 >
                   <div className="space-y-1 flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -165,7 +222,7 @@ export default function StudentComplaints() {
 
       {/* Detail Dialog */}
       <Dialog open={!!selectedComplaint} onOpenChange={() => setSelectedComplaint(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           {selectedComplaint && (
             <>
               <DialogHeader>
@@ -178,48 +235,95 @@ export default function StudentComplaints() {
                 </DialogDescription>
               </DialogHeader>
               
-              <div className="space-y-6 mt-4">
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Description</h4>
-                  <p className="text-foreground">{selectedComplaint.description}</p>
-                </div>
-
-                {selectedComplaint.attachment_url && (
+              <ScrollArea className="flex-1 pr-4">
+                <div className="space-y-6 mt-4">
                   <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Attachment</h4>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={async () => {
-                        const { data } = await supabase.storage
-                          .from('complaint-attachments')
-                          .createSignedUrl(selectedComplaint.attachment_url!, 60);
-                        if (data?.signedUrl) {
-                          window.open(data.signedUrl, '_blank');
-                        }
-                      }}
-                    >
-                      <Download className="h-4 w-4" />
-                      View Attachment
-                    </Button>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Description</h4>
+                    <p className="text-foreground bg-muted/50 p-4 rounded-lg">{selectedComplaint.description}</p>
                   </div>
-                )}
 
-                {selectedComplaint.admin_response && (
-                  <div className="p-4 rounded-lg bg-accent/10 border border-accent/20">
-                    <h4 className="text-sm font-medium text-accent mb-2">Admin Response</h4>
-                    <p className="text-foreground">{selectedComplaint.admin_response}</p>
-                  </div>
-                )}
-
-                <div className="flex gap-4 text-sm text-muted-foreground">
-                  <span>Last updated: {new Date(selectedComplaint.updated_at).toLocaleString()}</span>
-                  {selectedComplaint.resolved_at && (
-                    <span>Resolved: {new Date(selectedComplaint.resolved_at).toLocaleDateString()}</span>
+                  {selectedComplaint.attachment_url && (
+                    <div>
+                      <h4 className="text-sm font-medium text-muted-foreground mb-2">Attachment</h4>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={async () => {
+                          const { data } = await supabase.storage
+                            .from('complaint-attachments')
+                            .createSignedUrl(selectedComplaint.attachment_url!, 60);
+                          if (data?.signedUrl) {
+                            window.open(data.signedUrl, '_blank');
+                          }
+                        }}
+                      >
+                        <Download className="h-4 w-4" />
+                        View Attachment
+                      </Button>
+                    </div>
                   )}
+
+                  {selectedComplaint.admin_response && (
+                    <div className="p-4 rounded-lg bg-accent/10 border border-accent/20">
+                      <h4 className="text-sm font-medium text-accent mb-2">Admin Response</h4>
+                      <p className="text-foreground">{selectedComplaint.admin_response}</p>
+                    </div>
+                  )}
+
+                  {/* Comments / Messages Section */}
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      Messages ({comments.length})
+                    </h4>
+                    <div className="space-y-3 mb-4">
+                      {comments.length === 0 ? (
+                        <p className="text-sm text-muted-foreground italic">No messages yet. Send a message to communicate with the admin.</p>
+                      ) : (
+                        comments.map((comment) => (
+                          <div
+                            key={comment.id}
+                            className={`p-3 rounded-lg ${
+                              comment.is_admin
+                                ? 'bg-primary/10 border border-primary/20 ml-8'
+                                : 'bg-muted mr-8'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-medium">
+                                {comment.is_admin ? 'Admin' : 'You'}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(comment.created_at).toLocaleString()}
+                              </span>
+                            </div>
+                            <p className="text-sm">{comment.content}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Type a message..."
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendComment()}
+                      />
+                      <Button size="icon" onClick={handleSendComment} disabled={sendingComment || !newComment.trim()}>
+                        {sendingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 text-sm text-muted-foreground">
+                    <span>Last updated: {new Date(selectedComplaint.updated_at).toLocaleString()}</span>
+                    {selectedComplaint.resolved_at && (
+                      <span>Resolved: {new Date(selectedComplaint.resolved_at).toLocaleDateString()}</span>
+                    )}
+                  </div>
                 </div>
-              </div>
+              </ScrollArea>
             </>
           )}
         </DialogContent>

@@ -35,30 +35,25 @@ export default function StudentOverview({ onNavigate }: { onNavigate: (tab: stri
 
   const fetchData = async () => {
     try {
-      // Fetch complaints
-      const { data: complaints } = await supabase
+      // Fetch ALL complaints for accurate stats
+      const { data: allComplaints } = await supabase
         .from('complaints')
         .select('id, subject, status, created_at, category:categories(name)')
         .eq('user_id', user!.id)
-        .order('created_at', { ascending: false })
-        .limit(5);
+        .order('created_at', { ascending: false });
 
-      if (complaints) {
-        setRecentComplaints(complaints as unknown as RecentComplaint[]);
+      if (allComplaints) {
+        // Use only first 5 for recent display
+        setRecentComplaints(allComplaints.slice(0, 5) as unknown as RecentComplaint[]);
         
-        const total = complaints.length;
-        const submitted = complaints.filter(c => c.status === 'submitted').length;
-        const inReview = complaints.filter(c => c.status === 'in_review').length;
-        const resolved = complaints.filter(c => c.status === 'resolved').length;
-        
-        // Get full count for stats
-        const { count } = await supabase
-          .from('complaints')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user!.id);
+        // Count from ALL complaints
+        const total = allComplaints.length;
+        const submitted = allComplaints.filter(c => c.status === 'submitted').length;
+        const inReview = allComplaints.filter(c => c.status === 'in_review').length;
+        const resolved = allComplaints.filter(c => c.status === 'resolved').length;
         
         setStats({
-          total: count || 0,
+          total,
           submitted,
           inReview,
           resolved,
